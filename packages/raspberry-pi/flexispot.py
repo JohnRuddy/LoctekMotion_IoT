@@ -1,6 +1,7 @@
 import serial
 import RPi.GPIO as GPIO
 import sys
+import time
 
 SERIAL_PORT = "/dev/ttyS0" # GPIO14 (TX) and GPIO15 (RX)
 PIN_20 = 12 # GPIO 12
@@ -68,53 +69,39 @@ class LoctekMotion():
             return 10, decimal
         return -1, decimal
 
-    def current_height(self):
-        history = [None] * 5
-        msg_type = 0
-        msg_len = 0
-        valid = False
-        while True:
-            try:
-                # read in each byte
-                data = self.serial.read(1)
-                # 9b starts the data
-                # the value after 9b has the length of the packet
-                if history[0] == 0x9b:
-                    msg_len = data[0]
-                if history[1] == 0x9b:
-                    msg_type = data[0]
-                if history[2] == 0x9b:
-                    if msg_type == 0x12 and msg_len == 7:
-                        if data[0] == 0:
-                            print("height is empty                ", end='\r')
-                        else:
-                            valid = True
-                if history[3] == 0x9b:
-                    if valid == True:
-                         pass
-                if history[4] == 0x9b:
-                    if valid == True and msg_len == 7:
-                        height1, decimal1 = self.decode_seven_segment(history[1])
-                        height1 = height1 * 100
-                        height2, decimal2 = self.decode_seven_segment(history[0])
-                        height2 = height2 * 10
-                        height3, decimal3 = self.decode_seven_segment(data[0])
-                        if height1 < 0 or height2 < 0 or height3 < 0:
-                            print("Display Empty","          ",end='\r')
-                        else:
-                            finalHeight = height1 + height2 + height3
-                            decimal = decimal1 or decimal2 or decimal3
-                            if decimal == True:
-                                finalHeight = finalHeight/10
-                            print("Height:",finalHeight,"       ",end='\r')
-                history[4] = history[3]
-                history[3] = history[2]
-                history[2] = history[1]
-                history[1] = history[0]
-                history[0] = data[0]
-            except Exception as e:
-                print(e)
+
+
+def current_height(self):
+    start_time = time.time()  # Record the start time
+    timeout = 10  # Set a timeout duration in seconds
+    history = [None] * 5
+    while True:
+        # Check if the current time exceeds the start time by the timeout duration
+        if time.time() - start_time > timeout:
+            print("Timeout reached, exiting loop")
+            break
+
+        try:
+            data = self.serial.read(1)
+            if not data:
+                print("No data received, exiting loop")
+                break  # Exit the loop if no data is received
+
+            # Update the history buffer
+            history.pop(0)  # Remove the oldest item
+            history.append(data[0])  # Add the newest item
+
+            # Example condition to break the loop, adjust according to your data processing logic
+            if len(set(history)) == 1 and history[0] == 0x9b:  # Just an example condition
+                print("Specific condition met, exiting loop")
                 break
+
+            # Place your data processing logic here
+
+        except Exception as e:
+            print(f"Error reading serial data: {e}")
+            break
+
 
 def main():
     try:
@@ -135,10 +122,13 @@ def main():
         for command in SUPPORTED_COMMANDS:
             print("\t", command)
         sys.exit(1)
+        return
     except KeyboardInterrupt:
         sys.exit(1)
+        return
     finally:
         GPIO.cleanup()
+        return()
 
 if __name__ == "__main__":
     main()
